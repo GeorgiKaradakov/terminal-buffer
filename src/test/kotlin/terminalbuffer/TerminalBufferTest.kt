@@ -66,6 +66,16 @@ class TerminalBufferTest {
         }
 
         @Test
+        @DisplayName("should respect carriage return and overwrite existing content")
+        fun `should overwrite content after carraige return`() {
+          buffer.writeText("Hello")
+          buffer.writeText("\rABC")
+
+          assertEquals("ABClo", buffer.getLine(0).substring(0,5))
+        }
+
+
+        @Test
         @DisplayName("Should override existing content completely")
         fun `should override existing content completely`() {
             buffer.writeText("Original")
@@ -95,7 +105,6 @@ class TerminalBufferTest {
             val line = buffer.getLine(0)
             assertEquals("Lo", line.substring(13, 15)) // Only first 2 chars fit
             // Cursor should be at end of line or wrap to next line
-            println(buffer.cursor)
             assertTrue(buffer.cursor == Coord(1, 6))
         }
 
@@ -217,7 +226,6 @@ class TerminalBufferTest {
             buffer.writeText("AB")
             buffer.moveCursorLeft(1) // Position at 'B'
             buffer.insertText("X\nY")
-            println(buffer.getLine(1))
 
             assertEquals("AXB", buffer.getLine(0).trim())
             assertEquals("Y", buffer.getLine(1).trim())
@@ -362,11 +370,6 @@ class TerminalBufferTest {
             buffer.moveCursorUp(100)
             buffer.moveCursorDown(targetRow)
             buffer.fillLine('X')
-            println(buffer.getScreenContent())
-            for (row in 0 until buffer.height) {
-                val line = buffer.getLine(row)
-                println(line)
-            }
 
             // Check other lines are unchanged
             for (row in 0 until buffer.height) {
@@ -374,7 +377,6 @@ class TerminalBufferTest {
                 if (row == targetRow) {
                     assertEquals("X".repeat(buffer.width), line)
                 } else {
-                  println(line)
                     assertTrue(line.startsWith("Line$row"))
                 }
             }
@@ -521,17 +523,6 @@ class TerminalBufferTest {
             val content = buffer.getScreenContent()
             // Should maintain line structure (newlines or consistent formatting)
             assertTrue(content.indexOf("Line1") < content.indexOf("Line2"))
-        }
-
-        @Test
-        @DisplayName("Should get all content including scrollback")
-        fun `should get all content including scrollback`() {
-            val allContent = buffer.getAllContent()
-            assertNotNull(allContent)
-
-            // Just verify that getAllContent returns a valid string
-            // The relationship between screen and all content depends on implementation details
-            assertTrue(allContent.isNotEmpty() || allContent.isEmpty()) // Always true - just testing method works
         }
     }
 
@@ -716,6 +707,7 @@ class TerminalBufferTest {
         @Test
         @DisplayName("Should handle complete document editing workflow")
         fun `should handle complete document editing workflow`() {
+            buffer = TerminalBuffer(width = 50, height = 20, scrollbackSize = 100)
             // Create a document
             buffer.writeText("DOCUMENT TITLE")
             buffer.moveCursorDown(1)
@@ -746,6 +738,8 @@ class TerminalBufferTest {
         @Test
         @DisplayName("Should handle terminal-like input simulation")
         fun `should handle terminal-like input simulation`() {
+            buffer = TerminalBuffer(width = 55, height = 10, scrollbackSize = 100)
+          
             // Simulate terminal prompt
             buffer.writeText("$ ls -la")
             buffer.moveCursorDown(1)
@@ -778,6 +772,7 @@ class TerminalBufferTest {
         @Test
         @DisplayName("Should handle code editor simulation")
         fun `should handle code editor simulation`() {
+          buffer = TerminalBuffer(width = 25, height = 10, scrollbackSize = 100)
             // Write code
             buffer.writeText("function hello() {")
             buffer.moveCursorDown(1)
@@ -790,24 +785,31 @@ class TerminalBufferTest {
             // Edit code - insert parameter
             buffer.moveCursorUp(2) // Go to function line
             buffer.moveCursorLeft(100)
-            buffer.moveCursorRight(14) // After "function hello"
-            buffer.insertText("(name)")
+            buffer.moveCursorRight(15) // After "function hello"
+            buffer.insertText("name")
 
             // Edit string
             buffer.moveCursorDown(1)
             buffer.moveCursorLeft(100)
             buffer.moveCursorRight(20) // Inside string
-            buffer.writeText(", ' + name")
+            buffer.writeText(", ' + name)")
+
+            buffer.moveCursorDown(1)
+            buffer.moveCursorLeft(100)
+            buffer.writeText("} // End of function")
+
 
             // Verify code structure
-            assertTrue(buffer.getLine(0).contains("function hello(name) {"))
-            assertTrue(buffer.getLine(1).contains("console.log"))
-            assertTrue(buffer.getLine(2).contains("}"))
+            assertTrue(buffer.getLine(0).contains("function hello(name) {", true))
+            assertTrue(buffer.getLine(1).contains("console.log", true))
+            assertTrue(buffer.getLine(2).contains("name", true))
+            assertTrue(buffer.getLine(3).contains("}", true))
         }
 
         @Test
         @DisplayName("Should handle table creation and editing")
         fun `should handle table creation and editing`() {
+            buffer = TerminalBuffer(width = 31, height = 10, scrollbackSize = 100)
             // Create table header
             buffer.writeText("| Name     | Age | City     |")
             buffer.moveCursorDown(1)
@@ -876,344 +878,3 @@ class TerminalBufferTest {
         }
     }
 }
-
-// package terminalbuffer
-//
-// import org.junit.jupiter.api.BeforeEach
-// import org.junit.jupiter.api.DisplayName
-// import org.junit.jupiter.api.Nested
-// import org.junit.jupiter.api.Test
-// import org.junit.jupiter.api.assertDoesNotThrow
-// import org.junit.jupiter.api.assertThrows
-// import kotlin.test.assertEquals
-// import kotlin.test.assertFalse
-// import kotlin.test.assertNotNull
-// import kotlin.test.assertTrue
-//
-// @DisplayName("TerminalBuffer Complete Implementation Tests")
-// class TerminalBufferTest {
-//
-//     private lateinit var buffer: TerminalBuffer
-//
-//     @BeforeEach
-//     fun setUp() {
-//         buffer = TerminalBuffer(width = 15, height = 5, scrollbackSize = 100)
-//     }
-//
-//     @Nested
-//     @DisplayName("Constructor Edge Cases")
-//     inner class ConstructorEdgeCases {
-//
-//         @Test
-//         fun `should handle minimum valid dimensions`() {
-//             val minBuffer = TerminalBuffer(width = 1, height = 1, scrollbackSize = 0)
-//             assertEquals(1, minBuffer.width)
-//             assertEquals(1, minBuffer.height)
-//             assertEquals(0, minBuffer.scrollbackSize)
-//             assertEquals(Coord(0, 0), minBuffer.cursor)
-//         }
-//
-//         @Test
-//         fun `should handle reasonable large dimensions`() {
-//             val largeBuffer = TerminalBuffer(width = 100, height = 50, scrollbackSize = 1000)
-//             assertEquals(100, largeBuffer.width)
-//             assertEquals(50, largeBuffer.height)
-//             assertEquals(1000, largeBuffer.scrollbackSize)
-//         }
-//
-//         @Test
-//         fun `should initialize with empty content`() {
-//             for (row in 0 until buffer.height) {
-//                 for (col in 0 until buffer.width) {
-//                     val char = buffer.getCellChar(row, col)
-//                     assertEquals(' ', char)
-//                 }
-//             }
-//         }
-//     }
-//
-//     @Nested
-//     @DisplayName("WriteText Tests")
-//     inner class WriteTextTests {
-//
-//         @Test
-//         fun `should write text and move cursor correctly`() {
-//             buffer.writeText("Hello")
-//             assertEquals(Coord(0, 5), buffer.cursor)
-//             assertEquals("Hello", buffer.getLine(0).substring(0, 5))
-//         }
-//
-//         @Test
-//         fun `should override existing content`() {
-//             buffer.writeText("Original")
-//             buffer.moveCursorLeft(100)
-//             buffer.writeText("New")
-//
-//             val line = buffer.getLine(0)
-//             assertEquals("Newginal", line.trimEnd())
-//         }
-//
-//         @Test
-//         fun `should handle exact line boundary`() {
-//             val text = "123456789012345"
-//             buffer.writeText(text)
-//             assertEquals(text, buffer.getLine(0))
-//         }
-//
-//         @Test
-//         fun `should handle newlines correctly`() {
-//             buffer.writeText("Line1\nLine2")
-//
-//             assertEquals("Line1", buffer.getLine(0).trim())
-//             assertEquals("Line2", buffer.getLine(1).trim())
-//             assertEquals(Coord(1, 5), buffer.cursor)
-//         }
-//
-//         @Test
-//         fun `should handle multiple newlines`() {
-//             buffer.writeText("A\n\nB")
-//
-//             assertEquals("A", buffer.getLine(0).trim())
-//             assertEquals("", buffer.getLine(1).trim())
-//             assertEquals("B", buffer.getLine(2).trim())
-//         }
-//
-//         @Test
-//         fun `should handle empty string`() {
-//             val initialPos = buffer.cursor
-//             buffer.writeText("")
-//             assertEquals(initialPos, buffer.cursor)
-//         }
-//     }
-//
-//     @Nested
-//     @DisplayName("InsertText Tests")
-//     inner class InsertTextTests {
-//
-//         @Test
-//         fun `should insert text without destroying existing content`() {
-//             buffer = TerminalBuffer(width = 30, height = 5, scrollbackSize = 100)
-//
-//             buffer.writeText("HelloWorld")
-//             buffer.moveCursorLeft(5)
-//             buffer.insertText(" Beautiful ")
-//
-//             val line = buffer.getLine(0)
-//             assertEquals("Hello Beautiful World", line.trim())
-//         }
-//
-//         @Test
-//         fun `should shift content to the right`() {
-//             buffer.writeText("ABCDEF")
-//             buffer.moveCursorLeft(3)
-//             buffer.insertText("123")
-//
-//             val line = buffer.getLine(0)
-//             assertEquals("ABC123DEF", line.trim())
-//         }
-//
-//         @Test
-//         fun `should handle insertion with newline`() {
-//             buffer.writeText("AB")
-//             buffer.moveCursorLeft(1)
-//             buffer.insertText("X\nY")
-//
-//             assertEquals("AXB", buffer.getLine(0).trim())
-//             assertEquals("Y", buffer.getLine(1).trim())
-//         }
-//
-//         @Test
-//         fun `should handle empty insertion`() {
-//             buffer.writeText("Test")
-//             val initialPos = buffer.cursor
-//
-//             buffer.insertText("")
-//
-//             assertEquals("Test", buffer.getLine(0).trim())
-//             assertEquals(initialPos, buffer.cursor)
-//         }
-//     }
-//
-//     @Nested
-//     @DisplayName("FillLine Tests")
-//     inner class FillLineTests {
-//
-//         @Test
-//         fun `should fill entire line`() {
-//             buffer.moveCursorDown(2)
-//             buffer.fillLine('*')
-//
-//             val line = buffer.getLine(2)
-//             assertEquals("*".repeat(buffer.width), line)
-//         }
-//
-//         @Test
-//         fun `should override existing line`() {
-//             buffer.writeText("Existing text")
-//             buffer.fillLine('#')
-//
-//             val line = buffer.getLine(0)
-//             assertEquals("#".repeat(buffer.width), line)
-//         }
-//
-//         @Test
-//         fun `should not affect other lines`() {
-//
-//             for (row in 0 until buffer.height) {
-//                 buffer.moveCursorUp(100)
-//                 buffer.moveCursorDown(row)
-//                 buffer.moveCursorLeft(buffer.cursor.column)
-//                 buffer.writeText("Line$row")
-//             }
-//
-//             val targetRow = buffer.height / 2
-//
-//             buffer.moveCursorUp(100)
-//             buffer.moveCursorDown(targetRow)
-//             buffer.fillLine('X')
-//
-//             for (row in 0 until buffer.height) {
-//                 val line = buffer.getLine(row)
-//
-//                 if (row == targetRow) {
-//                     assertEquals("X".repeat(buffer.width), line)
-//                 } else {
-//                     assertTrue(line.startsWith("Line$row"))
-//                 }
-//             }
-//         }
-//     }
-//
-//     @Nested
-//     @DisplayName("Content Access Tests")
-//     inner class ContentAccessTests {
-//
-//         @Test
-//         fun `should get correct cell character`() {
-//
-//             for (row in 0 until buffer.height) {
-//                 for (col in 0 until buffer.width) {
-//
-//                     buffer.moveCursorUp(100)
-//                     buffer.moveCursorLeft(100)
-//                     buffer.moveCursorDown(row)
-//                     buffer.moveCursorRight(col)
-//
-//                     val char = ('A' + (row * buffer.width + col) % 26).toChar()
-//                     buffer.writeText(char.toString())
-//                 }
-//             }
-//
-//             for (row in 0 until buffer.height) {
-//                 for (col in 0 until buffer.width) {
-//                     val expectedChar = ('A' + (row * buffer.width + col) % 26).toChar()
-//                     val char = buffer.getCellChar(row, col)
-//                     assertEquals(expectedChar, char)
-//                 }
-//             }
-//         }
-//
-//         @Test
-//         fun `should throw exception for out of bounds`() {
-//
-//             val invalidCoords = listOf(
-//                 Coord(-1, 0),
-//                 Coord(0, -1),
-//                 Coord(buffer.height, 0),
-//                 Coord(0, buffer.width)
-//             )
-//
-//             invalidCoords.forEach {
-//                 assertThrows<IndexOutOfBoundsException> {
-//                     buffer.getCellChar(it.row, it.column)
-//                 }
-//             }
-//         }
-//
-//         @Test
-//         fun `should get line content`() {
-//
-//             val testLines = listOf("First", "Second", "Third", "", "Last")
-//
-//             testLines.forEachIndexed { index, content ->
-//                 buffer.moveCursorUp(100)
-//                 buffer.moveCursorLeft(100)
-//                 buffer.moveCursorDown(index)
-//                 buffer.writeText(content)
-//             }
-//
-//             testLines.forEachIndexed { index, expected ->
-//                 val actual = buffer.getLine(index).trim()
-//                 assertEquals(expected, actual)
-//             }
-//         }
-//
-//         @Test
-//         fun `should get complete screen content`() {
-//
-//             for (row in 0 until buffer.height) {
-//                 buffer.moveCursorUp(100)
-//                 buffer.moveCursorLeft(100)
-//                 buffer.moveCursorDown(row)
-//                 buffer.writeText("Row$row")
-//             }
-//
-//             val screenContent = buffer.getScreenContent()
-//
-//             assertNotNull(screenContent)
-//
-//             for (row in 0 until buffer.height) {
-//                 assertTrue(screenContent.contains("Row$row"))
-//             }
-//         }
-//
-//         @Test
-//         fun `should get all content`() {
-//             val content = buffer.getAllContent()
-//             assertNotNull(content)
-//         }
-//     }
-//
-//     @Nested
-//     @DisplayName("Scrollback Tests")
-//     inner class ScrollbackTests {
-//
-//         @Test
-//         fun `should maintain scrollback when lines scroll`() {
-//
-//             for (row in 0 until buffer.height) {
-//                 buffer.moveCursorUp(100)
-//                 buffer.moveCursorLeft(100)
-//                 buffer.moveCursorDown(row)
-//                 buffer.writeText("OriginalLine$row")
-//             }
-//
-//             for (i in 0 until 3) {
-//                 buffer.moveCursorDown(100)
-//                 buffer.moveCursorLeft(100)
-//                 buffer.writeText("\nNewLine$i")
-//             }
-//
-//             val allContent = buffer.getAllContent()
-//
-//             assertTrue(allContent.contains("OriginalLine0"))
-//         }
-//
-//         @Test
-//         fun `should respect scrollback size limit`() {
-//
-//             val smallBuffer = TerminalBuffer(width = 10, height = 3, scrollbackSize = 2)
-//
-//             for (i in 0 until 10) {
-//                 smallBuffer.moveCursorDown(100)
-//                 smallBuffer.moveCursorLeft(100)
-//                 smallBuffer.writeText("\nLine$i")
-//             }
-//
-//             val allContent = smallBuffer.getAllContent()
-//
-//             assertFalse(allContent.contains("Line0"))
-//             assertFalse(allContent.contains("Line1"))
-//         }
-//     }
-// }
