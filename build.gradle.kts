@@ -19,6 +19,9 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }
 
 kotlin {
@@ -28,3 +31,4 @@ kotlin {
 application {
     mainClass.set("MainKt")
 }
+
