@@ -1,5 +1,10 @@
 package terminalbuffer
 
+data class Coord(
+    val row: Int,
+    val column: Int,
+)
+
 class TerminalBuffer(
     val width: Int,
     val height: Int,
@@ -92,33 +97,77 @@ class TerminalBuffer(
         }
     }
 
-    fun fillLine(character: Char) {}
-
-    // content access
-    fun getCellChar(pos: Coord): Cell {
-        // TODO: Implement getCellChar
-        return Cell()
+    fun fillLine(character: Char = '\u0000') {
+        for (col in 0 until width) {
+            screen[cursor.row][col].char = character
+            screen[cursor.row][col].attributes = attributes
+        }
     }
 
-    fun getCellAttributes(pos: Coord): Attributes {
-        // TODO: Implement getCellAttributes
-        return Attributes(Color.DEFAULT, Color.DEFAULT, CellStyle.NORMAL)
+    fun clearScreen() {
+        screen.forEach { line ->
+            line.forEach { cell ->
+                cell.char = '\u0000'
+                cell.attributes = Attributes()
+            }
+        }
+
+        cursor = cursor.copy(row = 0, column = 0)
+    }
+
+    fun clearScrollbackAndScreen() {
+        scrollback.clear()
+        clearScreen()
+    }
+
+    // content access
+    fun getCellChar(
+        row: Int,
+        col: Int,
+    ): Char {
+        if (row < 0 || row >= height + scrollback.size || col < 0 || col >= width) {
+            throw IndexOutOfBoundsException("Index out of bounds: row=$row col=$col")
+        }
+
+        val outChar = if (row < scrollback.size) scrollback[row][col].char else screen[row - scrollback.size][col].char
+        return if (outChar == '\u0000') ' ' else outChar
+    }
+
+    fun getCellAttributes(
+        row: Int,
+        col: Int,
+    ): Attributes {
+        if (row < 0 || row >= height + scrollback.size || col < 0 || col >= width) {
+            throw IndexOutOfBoundsException("Index out of bounds: row=$row col=$col")
+        }
+
+        return if (row < scrollback.size) scrollback[row][col].attributes.copy() else screen[row - scrollback.size][col].attributes.copy()
     }
 
     fun getLine(lineInd: Int): String {
-        // TODO: Implement getLine
-        return ""
+        if (lineInd < 0 || lineInd >= height + scrollback.size) {
+            throw IndexOutOfBoundsException("Line index out of bounds: lineInd=$lineInd")
+        }
+
+        return if (lineInd < scrollback.size) {
+            scrollback[lineInd].joinToString("") { cell -> if (cell.char == '\u0000') " " else cell.char.toString() }
+        } else {
+            screen[lineInd - scrollback.size].joinToString("") { cell -> if (cell.char == '\u0000') " " else cell.char.toString() }
+        }
     }
 
-    fun getScreenContent(): String {
-        // TODO: Implement getScreenContent
-        return ""
-    }
+    fun getScreenContent(): String =
+        screen.joinToString("\n") { line ->
+            line.joinToString("") { cell -> if (cell.char == '\u0000') " " else cell.char.toString() }
+        }
 
-    fun getAllContent(): String {
-        // TODO: Implement getAllContent
-        return ""
-    }
+    // TODO: Fix the newline at the beginning when scrollback is empty
+    fun getAllContent(): String =
+        (
+            scrollback.joinToString("\n") { line ->
+                line.joinToString("") { cell -> if (cell.char == '\u0000') " " else cell.char.toString() }
+            } + "\n" + getScreenContent()
+        ).trimEnd()
 
     // utility functions
     private fun shiftLines() {
@@ -151,8 +200,3 @@ class TerminalBuffer(
         }
     }
 }
-
-data class Coord(
-    val row: Int,
-    val column: Int,
-)
